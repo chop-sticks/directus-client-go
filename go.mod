@@ -1,3 +1,3 @@
-module github.com/chop-sticks/directus-client-go/v1
+module github.com/chop-sticks/directus-client-go
 
 go 1.26.0
