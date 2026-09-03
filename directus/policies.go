@@ -9,9 +9,9 @@ type Policy struct {
 	Icon        string `json:"icon,omitempty"`
 	Description string `json:"description,omitempty"`
 	IPAccess    string `json:"ip_access,omitempty"`
-	EnforceTFA  bool   `json:"enforce_tfa,omitempty"`
-	AdminAccess bool   `json:"admin_access,omitempty"`
-	AppAccess   bool   `json:"app_access,omitempty"`
+	EnforceTFA  bool   `json:"enforce_tfa"`
+	AdminAccess bool   `json:"admin_access"`
+	AppAccess   bool   `json:"app_access"`
 	Permissions []any  `json:"permissions,omitempty"`
 	Users       []any  `json:"users,omitempty"`
 	Roles       []any  `json:"roles,omitempty"`
