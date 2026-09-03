@@ -1,42 +1,63 @@
 package directus
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func intPtr(i int) *int { return &i }
 
 func TestBuildQueryString(t *testing.T) {
-	// buildQueryString currently ignores its argument and always returns "".
 	cases := []struct {
-		name   string
-		params interface{}
+		name     string
+		query    *Query
+		contains []string
+		want     string // exact match when set
 	}{
-		{"untyped nil", nil},
-		{"arbitrary struct", struct{ Limit int }{Limit: 10}},
-		{"string", "anything"},
+		{"nil", nil, nil, ""},
+		{"empty", &Query{}, nil, ""},
+		{"limit", &Query{Limit: intPtr(10)}, nil, "?limit=10"},
+		{"offset+page", &Query{Offset: intPtr(5), Page: intPtr(2)}, []string{"offset=5", "page=2"}, ""},
+		{"fields joined", &Query{Fields: []string{"id", "title"}}, []string{"fields=id%2Ctitle"}, ""},
+		{"sort joined", &Query{Sort: []string{"-date", "id"}}, []string{"sort=-date%2Cid"}, ""},
+		{"search", &Query{Search: "hello world"}, []string{"search=hello+world"}, ""},
+		{"filter json", &Query{Filter: map[string]any{"status": map[string]any{"_eq": "published"}}}, []string{"filter="}, ""},
+		{"aggregate json", &Query{Aggregate: map[string]any{"count": "*"}}, []string{"aggregate="}, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := buildQueryString(tc.params); got != "" {
-				t.Errorf("expected empty query string, got %q", got)
+			got := buildQueryString(tc.query)
+			if tc.want != "" || (tc.query == nil || len(tc.contains) == 0) {
+				if got != tc.want {
+					t.Errorf("buildQueryString() = %q, want %q", got, tc.want)
+				}
+			}
+			for _, sub := range tc.contains {
+				if !strings.Contains(got, sub) {
+					t.Errorf("buildQueryString() = %q, want it to contain %q", got, sub)
+				}
 			}
 		})
 	}
 }
 
 func TestBuildURL(t *testing.T) {
+	base := "https://example.com"
 	cases := []struct {
-		name    string
-		baseURL string
-		path    string
-		params  interface{}
-		want    string
+		name  string
+		path  string
+		query *Query
+		want  string
 	}{
-		{"no params", "https://example.com", "/collections", nil, "https://example.com/collections"},
-		{"params ignored", "https://example.com", "/items/articles", struct{ X int }{X: 1}, "https://example.com/items/articles"},
-		{"empty path", "https://example.com", "", nil, "https://example.com"},
+		{"no query", "/collections", nil, "https://example.com/collections"},
+		{"empty query", "/items/articles", &Query{}, "https://example.com/items/articles"},
+		{"with limit", "/items/articles", &Query{Limit: intPtr(1)}, "https://example.com/items/articles?limit=1"},
+		{"empty path", "", nil, "https://example.com"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := buildURL(tc.baseURL, tc.path, tc.params); got != tc.want {
-				t.Errorf("buildURL(%q, %q, %v) = %q, want %q", tc.baseURL, tc.path, tc.params, got, tc.want)
+			if got := buildURL(base, tc.path, tc.query); got != tc.want {
+				t.Errorf("buildURL(%q, %q, %v) = %q, want %q", base, tc.path, tc.query, got, tc.want)
 			}
 		})
 	}
