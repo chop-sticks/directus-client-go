@@ -34,21 +34,6 @@ func (f RoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-func setupMockServer(t *testing.T) (*httptest.Server, *Client) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Default handler, can be overridden in tests
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "{}")
-	}))
-
-	token := "test_token"
-	host := "https://example.com"
-	client, _ := NewClient(&host, &token)
-	client.HostURL = server.URL
-
-	return server, client
-}
-
 func TestNewClient(t *testing.T) {
 	token := "test_token"
 	host := "https://example.com"

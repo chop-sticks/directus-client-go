@@ -1,6 +1,7 @@
 package directus
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -155,5 +156,131 @@ func TestGetFieldByCollectionAndNameBadJSON(t *testing.T) {
 	})
 	if _, err := client.GetFieldByCollectionAndName("sites", "id"); err == nil {
 		t.Error("expected JSON unmarshal error, got nil")
+	}
+}
+
+func TestFieldSchemaOmitempty(t *testing.T) {
+	m := marshalToMap(t, FieldSchema{Name: "id", Table: "sites", DataType: "varchar", IsNullable: true})
+
+	// Non-omitempty keys must always be present.
+	for _, key := range []string{"name", "table", "data_type", "default_value", "is_generated", "is_nullable", "is_unique", "is_indexed", "is_primary_key", "has_auto_increment"} {
+		if _, ok := m[key]; !ok {
+			t.Errorf("expected key %q to be present", key)
+		}
+	}
+	// Nullable value fields must be omitted when zero.
+	for _, key := range []string{"schema", "generation_expression", "max_length", "numeric_precision", "numeric_scale", "foreign_key_schema", "foreign_key_table", "foreign_key_column", "comment"} {
+		if _, ok := m[key]; ok {
+			t.Errorf("expected key %q to be omitted when zero", key)
+		}
+	}
+	// default_value with no omitempty serializes as JSON null.
+	if string(m["default_value"]) != "null" {
+		t.Errorf("expected default_value to be null, got %s", m["default_value"])
+	}
+}
+
+func TestFieldUnmarshalNested(t *testing.T) {
+	data := `{
+		"collection":"sites",
+		"field":"id",
+		"type":"string",
+		"meta":{"id":1,"interface":"input","sort":1,"searchable":true,"special":["uuid"]},
+		"schema":{"name":"id","table":"sites","data_type":"character varying","max_length":255,"is_primary_key":true}
+	}`
+	var field Field
+	if err := json.Unmarshal([]byte(data), &field); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if field.Meta == nil || field.Meta.Interface != "input" || field.Meta.Sort != 1 || !field.Meta.Searchable {
+		t.Errorf("unexpected meta: %+v", field.Meta)
+	}
+	if len(field.Meta.Special) != 1 || field.Meta.Special[0] != "uuid" {
+		t.Errorf("expected special [uuid], got %v", field.Meta.Special)
+	}
+	if field.Schema == nil || field.Schema.MaxLength != 255 || !field.Schema.IsPrimaryKey {
+		t.Errorf("unexpected schema: %+v", field.Schema)
+	}
+}
+
+func TestFieldMetaRequiredNotOmitted(t *testing.T) {
+	// required/hidden/readonly/searchable have no omitempty: false must serialize
+	// so a write can explicitly clear them.
+	m := marshalToMap(t, FieldMeta{Collection: "sites", Field: "id"})
+	for _, key := range []string{"required", "hidden", "readonly", "searchable"} {
+		v, ok := m[key]
+		if !ok {
+			t.Errorf("expected key %q to be present even when false", key)
+			continue
+		}
+		if string(v) != "false" {
+			t.Errorf("expected %q to be false, got %s", key, v)
+		}
+	}
+}
+
+func TestCreateFieldPopulatesCollection(t *testing.T) {
+	var gotPath, gotMethod string
+	var got Field
+	client := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotMethod = r.Method
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{"data":{"collection":"sites","field":"title","type":"string"}}`)
+	})
+
+	f, err := client.CreateField("sites", &Field{Field: "title", Type: "string", Meta: &FieldMeta{Interface: "input"}}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Errorf("expected POST, got %s", gotMethod)
+	}
+	if gotPath != "/fields/sites" {
+		t.Errorf("expected path /fields/sites, got %s", gotPath)
+	}
+	if got.Collection != "sites" {
+		t.Errorf("expected body collection 'sites', got %q", got.Collection)
+	}
+	if got.Meta == nil || got.Meta.Collection != "sites" {
+		t.Errorf("expected body meta.collection 'sites', got %+v", got.Meta)
+	}
+	if f.Field != "title" {
+		t.Errorf("expected returned field 'title', got %q", f.Field)
+	}
+}
+
+func TestPatchFieldPopulatesLocation(t *testing.T) {
+	var gotPath string
+	var got Field
+	client := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{"data":{"collection":"sites","field":"title","type":"string"}}`)
+	})
+
+	if _, err := client.PatchField("sites", "title", &Field{Type: "string"}, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotPath != "/fields/sites/title" {
+		t.Errorf("expected path /fields/sites/title, got %s", gotPath)
+	}
+	if got.Collection != "sites" || got.Field != "title" {
+		t.Errorf("expected body collection/field sites/title, got %q/%q", got.Collection, got.Field)
+	}
+}
+
+func TestFieldWriteValidation(t *testing.T) {
+	client := badHostClient(t)
+	if _, err := client.CreateField("", &Field{}, nil); err == nil {
+		t.Error("CreateField: expected error for empty collection")
+	}
+	if _, err := client.PatchField("sites", "", &Field{}, nil); err == nil {
+		t.Error("PatchField: expected error for empty field name")
+	}
+	if err := client.DeleteField("", "x"); err == nil {
+		t.Error("DeleteField: expected error for empty collection")
 	}
 }

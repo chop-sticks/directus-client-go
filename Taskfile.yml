@@ -1,0 +1,148 @@
+version: '3'
+
+# Task runner for directus-client-go. Install Task: https://taskfile.dev
+# Run `task` (or `task --list`) to see available tasks.
+
+vars:
+  PKG: ./...
+  # Coverage is measured on the library only; the example package is
+  # untested demo code and would otherwise dilute the reported percentage.
+  COVER_PKG: ./directus/...
+  COVER_OUT: coverage.out
+  COVER_HTML: coverage.html
+  # Directory for machine-readable test reports (JUnit XML + JSON).
+  REPORT_DIR: test-reports
+  # gotestsum renders per-test PASS/FAIL and emits reports; run via `go run`
+  # so it never becomes a module dependency.
+  GOTESTSUM: go run gotest.tools/gotestsum@v1.13.0
+
+tasks:
+  default:
+    desc: List all available tasks.
+    cmds:
+      - task --list
+    silent: true
+
+  build:
+    desc: Compile all packages (library + example).
+    cmds:
+      - go build {{.PKG}}
+
+  test:
+    desc: Run the test suite.
+    cmds:
+      - go test {{.PKG}}
+
+  test:race:
+    desc: Run tests with the race detector.
+    cmds:
+      - go test -race {{.PKG}}
+
+  test:cover:
+    desc: Run tests and write a coverage profile + HTML report.
+    cmds:
+      - go test -coverprofile={{.COVER_OUT}} -covermode=atomic {{.COVER_PKG}}
+      - go tool cover -func={{.COVER_OUT}} | tail -1
+      - go tool cover -html={{.COVER_OUT}} -o {{.COVER_HTML}}
+      - 'echo "HTML report: {{.COVER_HTML}}"'
+
+  test:verbose:
+    desc: Run unit tests with per-test PASS/FAIL output (no extra tooling).
+    cmds:
+      - go test -v {{.COVER_PKG}}
+
+  test:report:
+    desc: Run unit tests via gotestsum; write JUnit XML + JSON to test-reports/.
+    cmds:
+      - mkdir -p {{.REPORT_DIR}}
+      - '{{.GOTESTSUM}} --format testname --junitfile {{.REPORT_DIR}}/unit.xml --jsonfile {{.REPORT_DIR}}/unit.json -- -count=1 {{.COVER_PKG}}'
+
+  test:integration:
+    desc: Start the Directus stack (docker compose) and run integration tests.
+    cmds:
+      - docker compose up -d --wait
+      - defer: docker compose down
+      - go test -tags=integration -count=1 ./directus/integration/...
+
+  test:integration:report:
+    desc: Run integration tests against the live stack; write JUnit XML + JSON.
+    cmds:
+      - mkdir -p {{.REPORT_DIR}}
+      - docker compose up -d --wait
+      - defer: docker compose down
+      - '{{.GOTESTSUM}} --format testname --junitfile {{.REPORT_DIR}}/integration.xml --jsonfile {{.REPORT_DIR}}/integration.json -- -tags=integration -count=1 ./directus/integration/...'
+
+  compose:up:
+    desc: Start the Directus stack in the background and wait until healthy.
+    cmds:
+      - docker compose up -d --wait
+
+  compose:down:
+    desc: Stop and remove the Directus stack.
+    cmds:
+      - docker compose down
+
+  compose:logs:
+    desc: Follow logs from the Directus stack.
+    cmds:
+      - docker compose logs -f
+
+  fmt:
+    desc: Format all Go source with gofmt.
+    cmds:
+      - gofmt -w .
+
+  fmt:check:
+    desc: Fail if any Go source is not gofmt-clean.
+    cmds:
+      - |
+        unformatted="$(gofmt -l .)"
+        if [ -n "$unformatted" ]; then
+          echo "These files are not gofmt-clean:"; echo "$unformatted"; exit 1
+        fi
+    silent: true
+
+  vet:
+    desc: Run go vet.
+    cmds:
+      - go vet {{.PKG}}
+
+  lint:
+    desc: Run golangci-lint (install from https://golangci-lint.run).
+    cmds:
+      - golangci-lint run
+
+  lint:fix:
+    desc: Run golangci-lint and auto-fix what it can.
+    cmds:
+      - golangci-lint run --fix
+
+  tidy:
+    desc: Tidy and verify go.mod / go.sum.
+    cmds:
+      - go mod tidy
+      - go mod verify
+
+  docs:
+    desc: Serve browsable package docs locally via pkgsite (http://localhost:8080).
+    cmds:
+      - go run golang.org/x/pkgsite/cmd/pkgsite@latest -http localhost:8080 .
+
+  docs:print:
+    desc: Print the full package API documentation to stdout.
+    cmds:
+      - go doc -all ./directus
+
+  ci:
+    desc: Run the full local CI gate (format check, vet, lint, tests).
+    cmds:
+      - task: fmt:check
+      - task: vet
+      - task: lint
+      - task: test
+
+  clean:
+    desc: Remove build, coverage, and report artifacts.
+    cmds:
+      - rm -rf {{.COVER_OUT}} {{.COVER_HTML}} {{.REPORT_DIR}}
+      - go clean
