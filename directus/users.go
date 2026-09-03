@@ -31,7 +31,7 @@ type User struct {
 	Description         string         `json:"description,omitempty"`
 	Location            string         `json:"location,omitempty"`
 	Tags                []string       `json:"tags,omitempty"`
-	EmailNotifications  bool           `json:"email_notifications,omitempty"`
+	EmailNotifications  bool           `json:"email_notifications"`
 }
 
 // GetUsers lists users.

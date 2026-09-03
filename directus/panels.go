@@ -9,7 +9,7 @@ type Panel struct {
 	Name        string         `json:"name,omitempty"`
 	Icon        string         `json:"icon,omitempty"`
 	Color       string         `json:"color,omitempty"`
-	ShowHeader  bool           `json:"show_header,omitempty"`
+	ShowHeader  bool           `json:"show_header"`
 	Note        string         `json:"note,omitempty"`
 	Type        string         `json:"type,omitempty"`
 	PositionX   int            `json:"position_x,omitempty"`

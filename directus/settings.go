@@ -12,8 +12,8 @@ type Settings struct {
 	DefaultAppearance             string `json:"default_appearance,omitempty"`
 	ProjectColor                  string `json:"project_color,omitempty"`
 	ProjectLogo                   any    `json:"project_logo,omitempty"`
-	PublicRegistration            bool   `json:"public_registration,omitempty"`
-	PublicRegistrationVerifyEmail bool   `json:"public_registration_verify_email,omitempty"`
+	PublicRegistration            bool   `json:"public_registration"`
+	PublicRegistrationVerifyEmail bool   `json:"public_registration_verify_email"`
 	StorageAssetTransform         string `json:"storage_asset_transform,omitempty"`
 	CustomCSS                     string `json:"custom_css,omitempty"`
 	ModuleBar                     any    `json:"module_bar,omitempty"`
