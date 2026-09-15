@@ -511,3 +511,105 @@ func TestE2EAccessPermissions(t *testing.T) {
 		t.Fatalf("DeletePermissions: %v", err)
 	}
 }
+
+func TestE2EAccessRecords(t *testing.T) {
+	c := itestClient(t)
+	policyID := newTestPolicy(t, c)
+	userID := newTestUser(t, c)
+	roleID := newTestRole(t, c)
+
+	// GetAccesses
+	accesses, err := c.GetAccesses(nil)
+	if err != nil {
+		t.Fatalf("GetAccesses: %v", err)
+	}
+	if len(accesses) == 0 {
+		t.Fatalf("GetAccesses returned no records")
+	}
+
+	// CreateAccess — bind policy to a user.
+	created, err := c.CreateAccess(&Access{Policy: policyID, User: userID}, nil)
+	if err != nil {
+		t.Fatalf("CreateAccess: %v", err)
+	}
+	if created == nil || created.ID == "" {
+		t.Fatalf("CreateAccess returned empty record")
+	}
+	t.Cleanup(func() { _ = c.DeleteAccess(created.ID) })
+
+	// GetAccess
+	got, err := c.GetAccess(created.ID, nil)
+	if err != nil {
+		t.Fatalf("GetAccess: %v", err)
+	}
+	if got == nil || got.ID != created.ID {
+		t.Fatalf("GetAccess mismatch: %+v", got)
+	}
+
+	// PatchAccess — move the binding to a role instead.
+	patched, err := c.PatchAccess(created.ID, &Access{User: nil, Role: roleID}, nil)
+	if err != nil {
+		t.Fatalf("PatchAccess: %v", err)
+	}
+	if patched == nil || patched.ID != created.ID {
+		t.Fatalf("PatchAccess mismatch: %+v", patched)
+	}
+
+	// CreateAccesses (2) — two distinct policies bound to the same role.
+	p2 := newTestPolicy(t, c)
+	p3 := newTestPolicy(t, c)
+	multi, err := c.CreateAccesses([]Access{
+		{Policy: p2, Role: roleID},
+		{Policy: p3, Role: roleID},
+	}, nil)
+	if err != nil {
+		t.Fatalf("CreateAccesses: %v", err)
+	}
+	if len(multi) != 2 {
+		t.Fatalf("CreateAccesses expected 2, got %d", len(multi))
+	}
+	keys := []string{multi[0].ID, multi[1].ID}
+	t.Cleanup(func() { _ = c.DeleteAccesses(keys) })
+
+	// PatchAccesses (keys)
+	pk, err := c.PatchAccesses(keys, &Access{Sort: new(1)}, nil)
+	if err != nil {
+		t.Fatalf("PatchAccesses: %v", err)
+	}
+	if len(pk) != 2 {
+		t.Fatalf("PatchAccesses expected 2, got %d", len(pk))
+	}
+
+	// PatchAccessesBatch
+	pb, err := c.PatchAccessesBatch([]Access{
+		{ID: multi[0].ID, Sort: new(2)},
+		{ID: multi[1].ID, Sort: new(3)},
+	}, nil)
+	if err != nil {
+		t.Fatalf("PatchAccessesBatch: %v", err)
+	}
+	if len(pb) != 2 {
+		t.Fatalf("PatchAccessesBatch expected 2, got %d", len(pb))
+	}
+
+	// DeleteAccess (single)
+	single, err := c.CreateAccess(&Access{Policy: newTestPolicy(t, c), Role: roleID}, nil)
+	if err != nil {
+		t.Fatalf("CreateAccess (for delete): %v", err)
+	}
+	if err := c.DeleteAccess(single.ID); err != nil {
+		t.Fatalf("DeleteAccess: %v", err)
+	}
+
+	// DeleteAccesses (many)
+	del, err := c.CreateAccesses([]Access{
+		{Policy: newTestPolicy(t, c), Role: roleID},
+		{Policy: newTestPolicy(t, c), Role: roleID},
+	}, nil)
+	if err != nil {
+		t.Fatalf("CreateAccesses (for delete): %v", err)
+	}
+	if err := c.DeleteAccesses([]string{del[0].ID, del[1].ID}); err != nil {
+		t.Fatalf("DeleteAccesses: %v", err)
+	}
+}
