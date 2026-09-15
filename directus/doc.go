@@ -2,7 +2,7 @@
 //
 // It mirrors the official JavaScript/TypeScript SDK command surface, exposing
 // CRUD and action methods for items, files, folders, users, roles, policies,
-// permissions, flows, operations, panels, dashboards, presets, translations,
+// access, permissions, flows, operations, panels, dashboards, presets, translations,
 // shares, comments, notifications, activity, revisions, content versions,
 // relations, settings, extensions, collections, and fields, plus the server,
 // schema, utils, and auth endpoints.

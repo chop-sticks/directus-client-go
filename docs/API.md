@@ -92,6 +92,10 @@ Auxiliary result/struct types: `AuthenticationData`, `AuthProvider`,
 - `GetPolicies(q)`; `GetPolicy(id string, q)`; `GetPolicyGlobals() (*PolicyGlobals, error)`
 - `CreatePolicy`/`CreatePolicies`; `PatchPolicy`/`PatchPolicies`/`PatchPoliciesBatch`; `DeletePolicy`/`DeletePolicies`
 
+### access.go
+- `GetAccesses(q)`; `GetAccess(id string, q)`
+- `CreateAccess`/`CreateAccesses`; `PatchAccess(id)`/`PatchAccesses(keys)`/`PatchAccessesBatch`; `DeleteAccess(id)`/`DeleteAccesses(keys)`
+
 ### permissions.go (id `int`)
 - `GetPermissions(q)`; `GetPermission(id int, q)`
 - `GetUserPermissions() (map[string]any, error)` — `/permissions/me`
